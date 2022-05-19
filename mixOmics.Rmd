@@ -1,0 +1,732 @@
+---
+title: "mixOmics"
+subtitle: "Introducción a la Biología de Sistemas"
+author: "Luis Andrés Rojas García Exp. 279465"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:  
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+    toc: true
+
+---
+
+# Instalación 
+
+```
+BiocManager::install("mixOmics")
+```
+
+# Cargar el paquete 
+```{r message=FALSE, warning=FALSE}
+library(mixOmics)
+
+# Otros paquetes requeridos
+library(rgl)
+```
+
+# Subir los datos
+
+```
+# from csv file
+data <- read.csv("your_data.csv", row.names = 1, header = TRUE)
+
+# from txt file
+data <- read.table("your_data.txt", header = TRUE)
+```
+
+## Inicio rápido de mixOmics
+
+Cada análisis debe seguir este flujo de trabajo:
+
+1. Ejecutar el método
+2. Representación gráfica de las muestras
+3. Representación gráfica de las variables
+
+### PCA
+
+```
+nutrimouse. Contiene la medida de expresión de 120 genes potencialmente involucrados en problemas nutricionales, y las concetraciones de 21 ácidos grasos hepáticos de 40 ratones.
+```
+
+```{r}
+data(nutrimouse)
+X <- nutrimouse$gene
+MyResult.pca <- pca(X)  # 1 Run the method
+plotIndiv(MyResult.pca) # 2 Plot the samples
+plotVar(MyResult.pca)   # 3 Plot the variables
+```
+
+El paquete propone varios métodos para realizar la selección de características o variables para identificar la información relevante de conjuntos de datos ómicos bastante grandes. Se puede aplicar un PCA disperso para seleccionar 5 variables principales que contribuyan a cada uno de los componentes principales. 
+
+### Aplicación de PCA disperso 
+
+```{r}
+MyResult.spca <- spca(X, keepX=c(5,5)) # 1 Run the method
+plotIndiv(MyResult.spca)
+plotVar(MyResult.spca)  # 2 Plot the samples
+```
+
+Se reduce significativamente el número de genes. 
+
+# Análisis de PCA
+
+Identificar las principales fuentes de variación en los datos e identificar si dichas fuentes de variación corresponden a condiciones biológicas o sesgos experimentales. Visualizar tendencias o patrones entre muestras, si se agrupan 'naturalmente' según condiciones biológicas conocidas.
+
+## Cargar los datos
+
+```
+live.toxicity. Contiene las medidas de expresión de 3116 genes y 10 medidas clínicas de 64 ratas expuestas a dosis tóxicas, moderadas y no tóxicas de paracetamol
+```
+
+```{r}
+data(liver.toxicity)
+X <- liver.toxicity$gene
+```
+
+## Inicio rápido
+
+```{r}
+MyResult.pca <- pca(X, ncomp =2, center = TRUE, scale = FALSE)     # 1 Run the method
+plotIndiv(MyResult.pca)    # 2 Plot the samples
+plotVar(MyResult.pca)      # 3 Plot the variables
+```
+
+Los dos gráficos no son extremadamente significativos, ya que los patrones de muestra específicos deben investigarse más a fondo y el gráfico circular de correlación variable contiene demasiadas variables para interpretarlo fácilmente. Se debe mejorar los gráficos para mejorar la interpretación.
+
+### Personalización 
+
+Si PCA no tiene en cuenta ninguna información sobre la pertenencia a un grupo conocido de cada muestra, podemos incluir dicha información en la parcela de muestra para visualizar cualquier grupo "natural" que pueda corresponder a condiciones biológicas.
+
+```{r}
+plotIndiv(MyResult.pca, group = liver.toxicity$treatment$Dose.Group, 
+          legend = TRUE)
+```
+
+Se pueden mostrar dos factores usando colores (argumento group) y símbolos (argumento pch). Por ejemplo,tanto la dosis como el tiempo de exposición.
+
+```{r}
+plotIndiv(MyResult.pca, ind.names = FALSE,
+          group = liver.toxicity$treatment$Dose.Group,
+          pch = as.factor(liver.toxicity$treatment$Time.Group),
+          legend = TRUE, title = 'Liver toxicity: genes, PCA comp 1 - 2',
+          legend.title = 'Dose', legend.title.pch = 'Exposure')
+```
+
+Al incluir información relacionada con la dosis de paracetamol y el tiempo de exposición, podemos ver un grupo de muestras de dosis bajas (azul y naranja, arriba a la izquierda con 50 y 100 mg respectivamente), mientras que las muestras con dosis altas (1500 y 2000 mg en gris y verde respectivamente) están más dispersas, pero resaltan un efecto de exposición.
+
+Para mostrar los resultados en otros componentes, podemos cambiar el compargumento siempre que hayamos solicitado suficientes componentes para calcular. Aquí está nuestro segundo PCA con 3 componentes.
+
+```{r}
+MyResult.pca2 <- pca(X, ncomp = 3)
+plotIndiv(MyResult.pca2, comp = c(1,3), legend = TRUE,
+          group = liver.toxicity$treatment$Time.Group,
+          title = 'Multidrug transporter, PCA comp 1 - 3')
+```
+
+El tercer componente en el eje y resalta claramente un efecto de tiempo de exposición.
+
+## Cantidad de variación explicada y elección del número de componentes
+
+La cantidad de varianza explicada se puede extraer con lo siguiente: un screeplot o las proporciones numéricas reales de la varianza explicada y la proporción acumulada.
+
+```{r}
+plot(MyResult.pca2)
+MyResult.pca2
+```
+
+## Selección de variables con spare PCA
+
+Aplicar PCA pero también poder identificar las variables clave que contribuyen a la explicación de la mayoría de las variaciones en el conjunto de datos.
+
+El usuario debe proporcionar el número de variables para seleccionar en cada PC. Se seleccionan los 15 genes principales que contribuyen a la definición de PC1, los 10 genes principales que contribuyen a PC2 y los 5 genes principales para PC3.
+
+
+```{r}
+MyResult.spca <- spca(X, ncomp = 3, keepX = c(15,10,5))                 # 1 Run the method
+plotIndiv(MyResult.spca, group = liver.toxicity$treatment$Dose.Group,   # 2 Plot the samples
+          pch = as.factor(liver.toxicity$treatment$Time.Group),
+          legend = TRUE, title = 'Liver toxicity: genes, sPCA comp 1 - 2',
+          legend.title = 'Dose', legend.title.pch = 'Exposure')
+plotVar(MyResult.spca, cex = 1)                                        # 3 Plot the variables
+```
+
+Las variables seleccionadas se pueden identificar en cada componente con la función *selectVar ()*.
+
+Esos valores corresponden a los pesos de carga que se utilizan para definir cada componente. Un valor absoluto grande indica la importancia de la variable en este PC. Las variables seleccionadas se clasifican de la más importante (arriba) a la menos importante.
+
+```{r}
+selectVar(MyResult.spca, comp = 1)$value
+```
+
+Podemos complementar esta salida con plotLoadings. Podemos ver aquí que todos los coeficientes son negativos.
+
+```{r}
+plotLoadings(MyResult.spca)
+```
+
+Si observamos el componente dos, podemos ver una combinación de pesos positivos y negativos, que corresponden a variables que se oponen a las dosis bajas y altas
+
+```{r}
+selectVar(MyResult.spca, comp=2)$value
+plotLoadings(MyResult.spca, comp = 2)
+```
+
+### Parametros de ajuste
+
+Para este conjunto de métodos, se deben elegir dos parámetros:
+
+- El número de componentes a retener
+- El número de variables para seleccionar en cada componente para PCA dispersa.
+
+La función *tune.pca ()* calcula el porcentaje de varianza explicado para cada componente. El número "óptimo" de componentes se puede identificar si aparece un codo en el screeplot. 
+
+En cuanto al número de variables a seleccionar en el PCA disperso, no existe un criterio claro en esta etapa. Dado que PCA es un método de exploración, es preferible  establecer umbrales arbitrarios que señalarán las variables clave en las que centrarse durante la etapa de interpretación.
+
+# PLS - Análisis Discriminante (PLS-DA)
+
+Analizar un único conjunto de datos (por ejemplo, datos de transcriptómica) y clasificar las muestras en grupos conocidos y predecir la clase de nuevas muestras. Además, identificar las variables clave que impulsan dicha discriminación.
+
+```
+srbct. Contiene la medida de expresión de 2308 genes en 63 muestras de células tumorales infantiles. Las muestras se clasifican en cuatro clases de la siguiente manera: 8 linfoma de Burkitt (BL), 23 sarcoma de Ewing (EWS), 12 neuroblastoma (NB) y 20 rabdomiosarcoma (RMS).
+```
+
+**spare PLS-DA**: realiza la selección y clasificación de variables en un procedimiento de un solo paso. La matriz de respuesta Y es cualitativa y se recodifica internamente como una matriz de bloques ficticios que registra la pertenencia de cada observación, es decir, cada una de las categorías de respuesta se codifica a través de una variable indicadora. Luego se ejecuta la regresión PLS como si Y fuera una matriz continua.
+
+## Inputs & outputs
+
+$x$ es una matriz de datos $n * p$. $y$ es un vector de longitud $n$ que indica la clase de cada muestra. $Y^*$ es la matriz fictica asociada $(n * K)$, donde $n$ es el número de muestras, $p$ es el número de variables, y $K$ el número de clases. 
+
+Los resultados principales de PLS-DA son:
+
++ Un conjunto de componentes , también llamadas variables latentes. Hay tantos componentes como la dimensión elegida del modelo PLS-DA.
++ Un conjunto de vectores de carga , que son coeficientes asignados a cada variable para definir cada componente. Esos coeficientes indican la importancia de cada variable en PLS-DA. Es importante destacar que cada vector de carga está asociado a un componente particular. Los vectores de carga se obtienen de forma que la covarianza entre una combinación lineal de las variables de X ( componente X) y el factor de interés Y (componente Y) se maximiza.
++ Una lista de variables seleccionadas X y asociadas a cada componente si se aplica sPLS-DA.
+
+## Configurar los datos
+
+spare PLS-DA es el más adecuado para grandes conjuntos de datos biológicos donde el objetivo es identificar firmas moleculares, así como clasificar muestras. 
+
+Primero configuramos los datos como matriz X de expresión y Y como un factor que indica la pertenencia a la clase de cada muestra. También comprobamos que las dimensiones son correctas y coinciden:
+
+```{r}
+data(srbct)
+X <- srbct$gene
+Y <- srbct$class 
+summary(Y)
+dim(X); length(Y)
+```
+
+## Inicio rapido
+
+Se establece arbitrariamente el número de variables para seleccionar en 50 en cada uno de los 3 componentes de PLS-DA. 
+
+```{r}
+MyResult.splsda <- splsda(X, Y, keepX = c(50,50)) # 1 Run the method
+plotIndiv(MyResult.splsda)                          # 2 Plot the samples
+plotVar(MyResult.splsda)                            # 3 Plot the variables
+selectVar(MyResult.splsda, comp=1)$name             # Selected variables on component 1
+```
+
+Como PLS-DA es un método supervisado, la parcela de muestra muestra automáticamente la pertenencia al grupo de cada muestra. Podemos observar una clara discriminación entre las muestras BL y las demás en el primer componente (eje x), y EWS vs las demás en el segundo componente (eje y). Esta esta discriminación definida por los dos primeros componentes de PLS-DA se obtiene a partir de un subconjunto de 100 variables (50 seleccionadas en cada componente).
+
+A partir de las *plotIndiv*, se indica la cantidad de variación explicada por componente. La interpretación de esta cantidad no es la misma que en PCA. En PLS-DA, el objetivo es maximizar la covarianza entre X y Y, no solo la varianza de X como es el caso en PCA.
+
+PLS-DA sin selección de variables se puede realizar como:
+
+```{r}
+MyResult.plsda <- plsda(X,Y, ncomp = 2, scale = TRUE) # 1 Run the method
+plotIndiv(MyResult.plsda)    # 2 Plot the samples
+plotVar(MyResult.plsda)      # 3 Plot the variables
+```
+
+## Personalización
+
+Las parcelas de muestra se pueden mejorar de varias maneras. Si los nombres de las muestras no son significativos en esta etapa, pueden ser reemplazados por símbolos ( ind.names=TRUE). Se pueden trazar elipses de confianza para cada muestra ( ellipse = TRUE, nivel de confianza establecido en 95 % de forma predeterminada). Además, un gráfico de estrella muestra flechas desde cada centroide de grupo hacia cada muestra individual ( star = TRUE). 
+
+```{r}
+plotIndiv(MyResult.splsda, ind.names = FALSE, legend=TRUE,
+          ellipse = TRUE, star = TRUE, title = 'sPLS-DA on SRBCT',
+          X.label = 'PLS-DA 1', Y.label = 'PLS-DA 2')
+```
+
+El nombre de las variables se puede establecer en FALSO ( var.names=FALSE):
+
+```{r}
+plotVar(MyResult.splsda, var.names=FALSE)
+plotVar(MyResult.plsda, cutoff=0.7)
+```
+
+Si se hubiera utilizado la versión no spare PLS-DA, se puede establecer un corte para mostrar solo las variables que más contribuyen a la definición de cada componente. Esas variables deben ubicarse hacia el círculo de radio 1, lejos del centro.
+
+En este caso particular, no se realizó selección de variables. Solo se modificó la pantalla para mostrar un subconjunto de variables.
+
+### Predicción de fondo
+
+Se puede agregar un fondo de 'predicción' a la parcela de muestra calculando primero una superficie de fondo, antes de superponer la parcela de muestra.
+
+```{r}
+background <- background.predict(MyResult.splsda, comp.predicted=2,
+                                dist = "max.dist") 
+plotIndiv(MyResult.splsda, comp = 1:2, group = srbct$class,
+          ind.names = FALSE, title = "Maximum distance",
+          legend = TRUE,  background = background)
+```
+
+### ROC
+
+Como PLS-DA actúa como un clasificador, se puede trazar una curva ROC para complementar los resultados de rendimiento de clasificación de sPLS-DA. El AUC se calcula a partir de conjuntos de validación cruzada de entrenamiento y se promedia. Los criterios de ROC y AUC pueden no ser particularmente esclarecedores o pueden no estar totalmente de acuerdo con el rendimiento de PLS-DA, ya que el umbral de predicción en PLS-DA se basa en la distancia especificada.
+
+```{r}
+auc.plsda <- auroc(MyResult.splsda)
+```
+
+### Outputs de la selección de variables
+
+El número de variables para seleccionar en cada componente no necesita ser idéntico en cada componente. Las variables seleccionadas se enumeran en la función *selectVar ()*.
+
+```{r}
+MyResult.splsda2 <- splsda(X,Y, ncomp=3, keepX=c(15,10,5))
+selectVar(MyResult.splsda2, comp=1)$value
+```
+
+Se puede visualizar *plotLoadings* con los argumentos *contrib = 'max'* que le van a asignar a cada barra de variable el color del grupo de muestra para el cual la media ( *method = 'mean'*) es máxima.
+
+```{r}
+plotLoadings(MyResult.splsda2, contrib = 'max', method = 'mean')
+```
+
+A partir de este gráfico, se puede ver que todas las variables seleccionadas en el componente 1 están muy expresadas en la clase BL (naranja). La configuración *contrib = 'min'* resaltaría que esas variables se expresan de forma baja en la clase gris NB, lo que tiene sentido cuando observamos la parcela de muestra.
+
+Dado que aquí se discriminan 4 clases, los gráficos de muestras en 3D pueden ayudar a la interpretación:
+
+```{r}
+plotIndiv(MyResult.splsda2, style="3d")
+```
+
+### Ajuste de parámetros y outputs numericos
+
+Para este conjunto de métodos, se deben elegir tres parámetros:
+
+1. El número de componentes a retener *ncomp*. La regla general suele ser $K−1$ donde $K$ es el número de clases.
+2. El número de variables *keepX* a seleccionar en cada componente para PLS-DA disperso.
+3. La distancia de predicción para evaluar el rendimiento de clasificación y predicción de PLS-DA.
+
+Para el elemento 1 , *perf* evalúa el rendimiento de PLS-DA para una gran cantidad de componentes, utilizando validación cruzada repetida de k-fold. Por ejemplo, aquí se usa CV de 3 veces repetido 10 veces:
+
+```{r}
+MyResult.plsda2 <- plsda(X,Y, ncomp=10)
+set.seed(30) 
+MyPerf.plsda <- perf(MyResult.plsda2, validation = "Mfold", folds = 3, 
+                  progressBar = FALSE, nrepeat = 10) # we suggest nrepeat = 50
+
+# type attributes(MyPerf.plsda) to see the different outputs
+
+# quick fix
+matplot(MyPerf.plsda$error.rate$BER, type = 'l', lty = 1, 
+        col = color.mixo(1:3), 
+        main = 'Balanced Error rate')
+legend('topright', 
+       c('max.dist', 'centroids.dist', 'mahalanobis.dist'), 
+       lty = 1,
+       col = color.mixo(5:7))
+```
+
+El gráfico genera la tasa de error de clasificación o la tasa de error de clasificación equilibrada cuando el número de muestras por grupo está desequilibrado, la desviación estándar según tres distancias de predicción. Aquí podemos ver que para el BER y la distancia máxima, parece lograrse el mejor rendimiento, es decir, una tasa de error baja para *ncomp = 3*.
+
+El elemento 3 para PLS-DA, los resultados numéricos enumerados se pueden informar como medidas de desempeño:
+
+```{r}
+MyPerf.plsda
+```
+
+Con respecto al ítem 2 , se usa *tune.splsda* para evaluar el número óptimo de variables para seleccionar en cada componente. Primero, se configura una cuadrícula de *keepX* valores que se evaluarán en cada componente, un componente a la vez. De manera similar a lo anterior, se ejecuta un CV de 3 veces repetido 10 veces con una predicción de distancia máxima definida.
+
+```{r}
+list.keepX <- c(5:10,  seq(20, 100, 10))
+list.keepX # to output the grid of values tested
+```
+
+```{r}
+set.seed(30) 
+tune.splsda.srbct <- tune.splsda(X, Y, ncomp = 3,
+                                 validation = 'Mfold',
+                                 folds = 3, dist = 'max.dist', progressBar = FALSE,
+                                 measure = "BER", test.keepX = list.keepX,
+                                 nrepeat = 10)   # we suggest nrepeat = 50
+```
+
+Luego se puede extraer la tasa de error de clasificación promediada en todos los pliegues y repeticiones para cada valor probado de *keepX* , la cantidad óptima de componentes, la cantidad óptima de variables para seleccionar por componente que se resume en una gráfica donde indica el diamante el valor óptimo *keepX*
+
+```{r}
+error <- tune.splsda.srbct$error.rate
+ncomp <- tune.splsda.srbct$choice.ncomp$ncomp 
+ncomp
+select.keepX <- tune.splsda.srbct$choice.keepX[1:ncomp]
+select.keepX
+plot(tune.splsda.srbct, col = color.jet(ncomp))
+```
+
+Con base en esos resultados de ajuste, se puede ejecutar nuestro modelo sPLS-DA final y ajustado
+
+```{r}
+MyResult.splsda.final <- splsda(X, Y, ncomp = ncomp, keepX = select.keepX)
+plotIndiv(MyResult.splsda.final, ind.names = FALSE, legend=TRUE,
+          ellipse = TRUE, title="SPLS-DA, Final result")
+```
+
+Además, se puede ejecutar *perf* para el rendimiento final del modelo sPLS-DA. Hay que tener en cuenta que *perf* generará *features* que enlista la frecuencia de selección de las variables en los diferentes pliegues y las diferentes repeticiones. 
+
+# Proyección a Estructura Latente (PLS)
+
+Integrar dos conjuntos de datos medidos en las mismas muestras extrayendo información correlacionada o resaltando los puntos en común entre los conjuntos de datos.
+
+Se usa la misma base de ```nutrimouse```, pero para ilustrar el spare PLS, se integran  los niveles de expresión génica con las concentraciones de ácidos grasos hepáticos.
+
+**PLS**: La regresión de mínimos cuadrados parciales es una metodología multivariada que relaciona dos matrices de datos X (por ejemplo, transcriptómica) y Y (por ejemplo, lípidos). No se limita a variables no correlacionadas. Puede manejar muchas variables ruidosas, colineales (correlacionadas) y faltantes, y también puede modelar simultáneamente varias variables de respuesta en formato Y.
+
+PLS es un método basado en proyección multivariante que puede abordar diferentes tipos de problemas de integración. PLS es computacionalmente muy eficiente cuando el número de variables $p + q >> n$ el número de muestras. 
+
+Realiza sucesivas regresiones locales que evitan problemas de cálculo debido a la inversión de grandes matrices de covarianza singulares. A diferencia de PCA, que maximiza la varianza de los componentes de un solo conjunto de datos, PLS maximiza la covarianza entre los componentes de dos conjuntos de datos. Los conceptos matemáticos de covarianza y correlación son similares, pero la covarianza es una medida ilimitada y la covarianza tiene una unidad de medida. En PLS, la combinación lineal de variables se denomina variables latentes o componentes latentes. Los vectores de peso utilizados para calcular las combinaciones lineales se denominan vectores de carga. Las variables latentes y los vectores de carga están asociados, y vienen en pares de cada uno de los dos conjuntos de datos que se integran.
+
+**spare PLS**: realizar una selección simultánea de variables tanto en conjuntos de datos X como en conjuntos de datos Y, al incluir LASSO $l_1  $ penalizaciones en PLS en cada par de vectores de carga. 
+
+## Inputs y outputs
+
+$X$ es una matriz de datos $n*p$. $Y$ es una matriz de datos $n*q$. $n$ es el número de muestras, $p$ y $q$ son el número de variables en cada conjunto d datos. Los resultados principales del PLS son:
+
++ Un conjunto de componentes , también llamadas variables latentes asociadas a cada conjunto de datos. Hay tantos componentes como la dimensión elegida del PLS.
++ Un conjunto de vectores de carga , que son coeficientes asignados a cada variable para definir cada componente. Esos coeficientes indican la importancia de cada variable en PLS. Es importante destacar que cada vector de carga está asociado a un componente particular. Los vectores de carga se obtienen de modo que la covarianza entre una combinación lineal de las variables del componente X y del componente Y, se maximiza.
++ Una lista de variables seleccionadas de X y Y asociadas a cada componente si se aplica sPLS.
+
+## Configuración de datos
+
+Configuramos los datos como matriz de expresión X y como matriz de abundancia de lípidos Y. También comprobamos que las dimensiones son correctas y coinciden:
+
+```{r}
+data(nutrimouse)
+X <- nutrimouse$gene  
+Y <- nutrimouse$lipid
+dim(X); dim(Y)
+```
+
+## Inicio rapido
+
+PLS disperso para grandes conjuntos de datos biológicos donde la selección de variables puede ayudar a la interpretación de los resultados. Aquí se establece arbitrariamente el número de variables para seleccionar en 50 en cada uno de los 2 componentes de PLS.
+
+```{r}
+MyResult.spls <- spls(X,Y, keepX = c(25, 25), keepY = c(5,5))  
+plotIndiv(MyResult.spls)   
+plotVar(MyResult.spls)
+```
+
+Debido a que PLS genera un par de componentes, cada uno asociado a cada conjunto de datos, la función *plotIndiv* produce 2 gráficos que representan las mismas muestras proyectadas en el espacio abarcado por los componentes X o los componentes Y.
+
+## Personalización
+
+Se puede elegir que el espacio de representación sean los componentes del conjunto de datos X, el conjunto de datos Y o un promedio entre ambos componentes *rep.space = 'XY-variate'*. 
+
+```{r}
+plotIndiv(MyResult.spls, group = nutrimouse$genotype,
+          rep.space = "XY-variate", legend = TRUE,
+          legend.title = 'Genotype',
+          ind.names = nutrimouse$diet,
+          title = 'Nutrimouse: sPLS')
+```
+
+```{r}
+plotIndiv(MyResult.spls, group=nutrimouse$diet,
+          pch = nutrimouse$genotype,
+          rep.space = "XY-variate",  legend = TRUE,
+          legend.title = 'Diet', legend.title.pch = 'Genotype',
+          ind.names = FALSE, 
+          title = 'Nutrimouse: sPLS')
+```
+
+### Personalizar gráficos de variables
+
+Aquí se cambia el tamaño de las etiquetas. Por defecto los colores se asignan a cada tipo de variable. Las coordenadas de las variables también se pueden guardar.
+
+```{r}
+plotVar(MyResult.spls, cex=c(3,2), legend = TRUE)
+coordinates <- plotVar(MyResult.spls, plot = FALSE)
+```
+
+### Mapas de imagen agrupados
+
+Se puede producir un mapa de imágenes agrupadas usando la función *cim*.Para mostrar la estructura de correlación entre las variables X e Y seleccionadas en el componente 1:
+
+```{r}
+# X11()
+# cim(MyResult.spls, comp = 1)
+# cim(MyResult.spls, comp = 1, save = 'jpeg', name.save = 'PLScim')
+```
+
+### Redes de relevancia
+
+Usando la misma entrada de matriz de similitud en CIM, también podemos representar redes bipartitas de relevancia. Esas redes solo representan bordes entre un tipo de variable *X* y el otro tipo de variable, *Y*. Si bien, se puede usar sPLS para limitaralgunas variables clave correlacionadas, los valores *keepX* y *keepY* aún pueden ser muy altos para este tipo de salida. Se puede establecer un corte basado en el coeficiente de correlación entre los diferentes tipos de variables.
+
+Otros argumentos, como *interactive = TRUE* habilitan una barra de desplazamiento para cambiar el valor de corte de forma interactiva, sdemás, el objeto del gráfico se puede guardar para ingresarlo en Cytoscape para una mejor visualización
+
+```{r}
+#X11()
+#network(MyResult.spls, comp = 1)
+# save as graph object for cytoscape
+# myNetwork <- network(MyResult.spls, comp = 1)$gR
+```
+
+### Arrow plots
+
+En lugar de proyectar las muestras en el espacio de representación XY combinado, sue puede superponer los gráficos de representación X e Y. Una flecha une la misma muestra desde el espacio X al espacio Y. Las flechas cortas indican un buen acuerdo encontrado por el PLS entre ambos conjuntos de datos.
+
+```{r}
+plotArrow(MyResult.spls,group=nutrimouse$diet, legend = TRUE,
+          X.label = 'PLS comp 1', Y.label = 'PLS comp 2', legend.title = 'Diet')
+```
+
+## Outputs de selección de variables
+
+Las variables seleccionadas se pueden extraer utilizando la función *selectVar* para su posterior análisis.
+
+```{r}
+MySelectedVariables <- selectVar(MyResult.spls, comp = 1)
+MySelectedVariables$X$name # Selected genes on component 1
+MySelectedVariables$Y$name # Selected lipids on component 1
+```
+
+Los loading plots ayudan a visualizar los coeficientes asignados a cada variable seleccionada en cada componente:
+
+```{r}
+plotLoadings(MyResult.spls, comp = 1, size.name = rel(0.5))
+```
+
+## Ajuste de parámetros y salidas numericas
+
+Para PLS y sPLS, se deben elegir dos tipos de parámetros:
+
+1. El número de componentes a retener ncomp.
+2. El número de variables a seleccionar en cada componente y en cada conjunto de datos *keepX* y *keepY* para PLS disperso.
+
+Para el elemento 1 , se usa la función *perf* y la validación cruzada repetida de k-fold para calcular el criterio Q2, utilizado en el software SIMCA-P. La regla general es que un componente PLS debe incluirse en el modelo si su valor es≤0.0975. Aquí usamos CV de 3 veces repetido 10 veces.
+
+Primero ejecutamos un modelo PLS con una cantidad suficiente de componentes y luego, se ejecuta *perf* en el objeto.
+
+```{r}
+MyResult.pls <- pls(X,Y, ncomp = 4)  
+set.seed(30) 
+perf.pls <- perf(MyResult.pls, validation = "Mfold", folds = 5,
+                  progressBar = FALSE, nrepeat = 10)
+plot(perf.pls, criterion = 'Q2.total')
+```
+
+Los valores disminuyen a medida que se agregan nuevos componentes, lo que generalmente indica un sobreajuste, por lo que un modelo con una gran cantidad de componentes no sería adecuado para la predicción.
+
+El elemento 2 puede ser bastante difícil de sintonizar. Por ejemplo, el mínimo en el que solo se ajusta *keepX* en función de la correlación entre los componentes con validación cruzada y los del modelo completo con todos los datos.
+
+```{r}
+list.keepX <- c(2:10, 15, 20)
+# tuning based on correlations
+set.seed(30) 
+tune.spls.cor <- tune.spls(X, Y, ncomp = 3,
+                           test.keepX = list.keepX,
+                           validation = "Mfold", folds = 5,
+                           nrepeat = 10, progressBar = FALSE,
+                           measure = 'cor')
+plot(tune.spls.cor, measure = 'cor')
+```
+
+Según la correlación de los componentes con validación cruzada, el número óptimo de variables para seleccionar en el conjunto de datos X, incluidas todas las variables en el conjunto de datos Y, sería:
+
+```{r}
+tune.spls.cor$choice.keepX
+```
+
+```{r}
+# tuning both X and Y
+set.seed(30) # for reproducibility in this vignette, otherwise increase nrepeat
+tune.spls.cor.XY <- tune.spls(X, Y, ncomp = 3,
+                           test.keepX = c(8, 20, 50),
+                           test.keepY = c(4, 8, 16),
+                           validation = "Mfold", folds = 5,
+                           nrepeat = 10, progressBar = FALSE,
+                           measure = 'cor')
+## visualise correlations
+plot(tune.spls.cor.XY, measure = 'cor')
+## visualise RSS
+plot(tune.spls.cor.XY, measure = 'RSS')
+```
+
+# Multi-block Discriminant Analysis con DIABLO
+
+Amplía PLS para la integración de conjuntos de datos múltiples y el análisis discriminante de PLS. Los acrónimos significan Análisis de integración de datos para el descubrimiento de biomarcadores utilizando componentes latentes (Data Integration Analysis for Biomarker discovery using a Latent cOmponents). 
+
+Identificar una firma multiómica altamente correlacionada que discrimine grupos de muestras conocidos.
+
+```
+Pequeño subconjunto del conjunto de datos completo del Atlas del genoma del cáncer que se puede analizar con el marco DIABLO. Contiene la expresión o abundancia de tres conjuntos de datos ómicos coincidentes: mRNA, miRNA y proteómica para 150 muestras de cáncer de mama (Basal, Her2, Luminal A) en el conjunto de entrenamiento y 70 muestras en el conjunto de prueba. Al conjunto de prueba le falta el conjunto de datos proteómicos.
+```
+
+El método central DIABLO generaliza PLS para múltiples conjuntos de datos coincidentes y el método sGCCA disperso. A partir del paquete R RGCCA, se extienden estos métodos para diferentes tipos de análisis, incluyendo la integración N-no supervisada y los análisis supervisados.
+
+El objetivo de la integración N con los métodos dispersos, es identificar variables correlacionadas (o coexpresadas) medidas en conjuntos de datos heterogéneos que también explican el resultado categórico de interés (análisis supervisado). 
+
+La tarea de integración de múltiples datos no es trivial, ya que el análisis puede verse fuertemente afectado por la variación entre fabricantes o plataformas tecnológicas ómicas a pesar de medirse sobre las mismas muestras biológicas. 
+
+## Inputs y outputs
+
+$X$ es un data frame con $n$ renglones y diferente numero de variaciones para cada base de datos. $Y$ es un vector de longitud $n$ que indica la clase de cada muestra. 
+
+Las principales salidas de DIABLO son:
++ Un conjunto de componentes , también llamadas variables latentes asociadas a cada conjunto de datos. Hay tantos componentes como la dimensión elegida de DIABLO.
++ Un conjunto de vectores de carga , que son coeficientes asignados a cada variable para definir cada componente. Esos coeficientes indican la importancia de cada variable en DIABLO. Es importante destacar que cada vector de carga está asociado a un componente particular. Los vectores de carga se obtienen de modo que la covarianza entre una combinación lineal de las variables del componente X y del componente Y, se maximiza.
++ Una lista de variables seleccionadas de cada conjunto de datos y asociadas a cada componente si se aplica DIABLO disperso.
+
+## Configurar los datos
+
+Se configuran los datos de entrada como una lista de data frames de matriz de expresión X, y Y como un factor que indica la pertenencia a la clase de cada muestra. Cada data frame X debe tener un nombre coherente para que coincida con el  parámetro *keepX*.
+
+Se comprueba que las dimensiones son correctas y coinciden. Luego se configura arbitrariamente el número de variables *keepX* que deseamos seleccionar en cada conjunto de datos y cada componente.
+
+```{r}
+data(breast.TCGA)
+# extract training data and name each data frame
+X <- list(mRNA = breast.TCGA$data.train$mrna, 
+          miRNA = breast.TCGA$data.train$mirna, 
+          protein = breast.TCGA$data.train$protein)
+Y <- breast.TCGA$data.train$subtype
+summary(Y)
+list.keepX <- list(mRNA = c(16, 17), miRNA = c(18,5), protein = c(5, 5))
+```
+
+## Inicio rapido
+
+DIABLO genera un par de componentes, cada uno asociado a cada conjunto de datos. Es por esto que se pueden visualizar aquí 3 parcelas de muestra. Como DIABLO es un método supervisado, las muestras se representan con diferentes colores dependiendo de su clase conocida.
+
+La gráfica variable sugiere alguna estructura de correlación entre proteínas, ARNm y miARN. 
+
+Versión spare,identificar una firma multiómica mínima; sin embargo, la versión no spare también podría ejecutarse con *block.plsda*.
+
+```{r}
+MyResult.diablo <- block.splsda(X, Y, keepX=list.keepX)
+plotIndiv(MyResult.diablo)
+plotVar(MyResult.diablo)
+MyResult.diablo2 <- block.plsda(X, Y)
+```
+
+## Personalización
+
+```{r}
+plotIndiv(MyResult.diablo, 
+          ind.names = FALSE, 
+          legend=TRUE, cex=c(1,2,3),
+          title = 'BRCA with DIABLO')
+```
+
+### Grafico de variables
+
+```{r}
+plotVar(MyResult.diablo, var.names = c(FALSE, FALSE, TRUE),
+        legend=TRUE, pch=c(16,16,1))
+```
+
+### PlotDIABLO
+
+Se puede representar una visión global de la estructura de correlación a nivel de componente plotDiablo. Traza los componentes a través de los diferentes conjuntos de datos para una dimensión determinada. Los colores indican la clase de cada muestra.
+
+```{r}
+plotDiablo(MyResult.diablo, ncomp = 1)
+```
+
+DIABLO extrae una fuerte correlación entre los conjuntos de datos de ARNm y proteínas. Se pueden trazar otras dimensiones con el argumento *comp*.
+
+### circosPlot
+
+Representa las correlaciones entre variables de diferente tipo, representadas en los cuadrantes laterales. Son posibles varias opciones de visualización, para mostrar dentro y entre conexiones entre bloques, niveles de expresión de cada variable según cada clase (argumento *line = TRUE*). circosPlot se construye a partir de una matriz de similitud, que se extendió al caso de múltiples conjuntos de datos. *cutoff* puede incluir un argumento para visualizar los coeficientes de correlación por encima de este umbral en la firma multiómica.
+
+```{r}
+circosPlot(MyResult.diablo, cutoff=0.7)
+```
+
+### cimDiablo
+
+Es un mapa de imágenes agrupadas implementado específicamente para representar la expresión de firma molecular multiómica para cada muestra. Es muy similar a un agrupamiento jerárquico clásico.
+
+```{r}
+# minimal example with margins improved:
+# cimDiablo(MyResult.diablo, margin=c(8,20))
+
+# extended example:
+# cimDiablo(MyResult.diablo, color.blocks = c('darkorchid', 'brown1', 'lightgreen'), comp = 1, margin=c(8,20), legend.position = "right")
+```
+
+### plotLoadings
+
+Visualiza los pesos de carga de cada variable seleccionada en cada componente cada conjunto de datos. El color indica la clase en la que la variable tiene el máximo nivel de expresión o mínimo, en promedio o utilizando la mediana. 
+
+```{r}
+#plotLoadings(MyResult.diablo, contrib = "max")
+plotLoadings(MyResult.diablo, comp = 2, contrib = "max")
+```
+
+
+### Redes de relevancia
+
+Otra visualización de la correlación entre los diferentes tipos de variables es la red de relevancia, que también se construye sobre la matriz de similitud. Cada color representa un tipo de variable. También se puede establecer un umbral con el argumento *cutoff*.
+
+```{r}
+network(MyResult.diablo, blocks = c(1,2,3),
+        color.node = c('darkorchid', 'brown1', 'lightgreen'), 
+        cutoff = 0.6, save = 'jpeg', name.save = 'DIABLOnetwork')
+```
+
+## Outputs numericos
+
+Se usa la validación cruzada repetida *perf* para evaluar la predicción del modelo. Para estos problemas de clasificación complejos, a menudo es adecuada una distancia centroide.
+
+```{r}
+set.seed(123)
+MyPerf.diablo <- perf(MyResult.diablo, validation = 'Mfold', folds = 5, 
+                   nrepeat = 10, 
+                   dist = 'centroids.dist')
+```
+
+### AUC
+
+Se traza un gráfico de AUC por bloque usando la función *aurocver*, para la interpretación de resultados como los criterios ROC y AUC no son particularmente esclarecedores en relación con la evaluación del rendimiento de los métodos, pero pueden complementar el análisis estadístico.
+
+AUC que incluye 2 componentes en el conjunto de datos de miARN.
+
+```{r}
+Myauc.diablo <- auroc(MyResult.diablo, roc.block = "miRNA", roc.comp = 2)
+```
+
+## Parámetros de ajuste
+
+Para DIABLO, los parámetros a sintonizar son:
+
+1. La matriz de diseño designindica qué conjuntos de datos o bloques deben conectarse para maximizar la covarianza entre los componentes y hasta qué punto. Es necesario lograr un compromiso entre maximizar la correlación entre los conjuntos de datos (valor de diseño entre 0,5 y 1) y maximizar la discriminación con el resultado Y (valor de diseño entre 0 y 0,5).
+2. El número de componentes a retener *ncomp*. La regla general suele ser $k−1$ donde $k# es el número de clases, pero vale la pena probar algunos componentes adicionales.
+3. El número de variables a seleccionar en cada componente y en cada conjunto de datos de la lista *keepX*.
+
+Para el elemento 1, de forma predeterminada, todos los conjuntos de datos están vinculados de la siguiente manera:
+
+```{r}
+MyResult.diablo$design
+```
+
+*design* puede cambiar de la siguiente manera. De forma predeterminada, cada conjunto de datos estará vinculado al resultado Y.
+
+```{r}
+MyDesign <- matrix(c(0, 0.1, 0.3,
+                     0.1, 0, 0.9,
+                     0.3, 0.9, 0),
+                   byrow=TRUE,
+                   ncol = length(X), nrow = length(X),
+                 dimnames = list(names(X), names(X)))
+MyDesign
+```
+
+```{r}
+MyResult.diablo.design <- block.splsda(X, Y, keepX=list.keepX, design=MyDesign)
+```
+
